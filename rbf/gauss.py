@@ -609,6 +609,28 @@ def _subtract(gp1, gp2):
   out = GaussianProcess(mean, covariance, basis=basis, dim=dim)
   return out
 
+def _mul(gp1, gp2):
+  '''
+  Returns a `GaussianProcess` which is the product of two
+  `GaussianProcess` instances.
+  '''
+  def mean(x, diff):
+    out = gp1._mean(x, diff) * gp2._mean(x, diff)
+    return out
+
+  def covariance(x1, x2, diff1, diff2):
+    out = (gp1._covariance(x1, x2, diff1, diff2) *
+           gp2._covariance(x1, x2, diff1, diff2))
+    return out
+
+  def basis(x, diff):
+    out = np.hstack((gp1._basis(x, diff),
+                     gp2._basis(x, diff)))
+    return out
+
+  dim = _max(gp1.dim, gp2.dim)
+  out = GaussianProcess(mean, covariance, basis=basis, dim=dim)
+  return out
 
 def _scale(gp, c):
   '''   
@@ -1174,11 +1196,14 @@ class GaussianProcess(object):
     '''
     return self.subtract(other)
 
-  def __mul__(self, c):
+  def __mul__(self, other):
     ''' 
     equivalent to calling `scale`
     '''
-    return self.scale(c)
+    if isinstance(other, GaussianProcess):
+        return self.mul(other)
+    else:
+        return self.scale(c)
 
   def __rmul__(self, c):
     ''' 
@@ -1241,6 +1266,16 @@ class GaussianProcess(object):
     out = _subtract(self, other)
     return out
     
+  def mul(self, other):
+    if (self.dim is not None) & (other.dim is not None):
+      if self.dim != other.dim:
+        raise ValueError(
+          'The number of spatial dimensions for the '
+          '`GaussianProcess` instances are inconsitent.')
+
+    out = _mul(self, other)
+    return out
+
   def scale(self, c):
     ''' 
     Scales a `GaussianProcess`.
